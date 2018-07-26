@@ -1,0 +1,16 @@
+[Unit]
+Description=uWSGI app "miku"
+After=syslog.target
+
+[Service]
+ExecStart=/usr/local/bin/uwsgi --ini /home/pi/Documents/miku/app.ini
+User=pi
+Group=pi
+Restart=always
+KillSignal=SIGQUIT
+Type=notify
+StandardError=syslog
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target
