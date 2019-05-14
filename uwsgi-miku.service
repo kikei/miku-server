@@ -3,6 +3,8 @@ Description=uWSGI app "miku"
 After=syslog.target
 
 [Service]
+Environment="PLAYLIST=/home/pi/Network/music/playlist/miku.m3u8"
+Environment="SPEAKER_MAC=FC:65:DE:AA:E2:6B"
 ExecStart=/usr/local/bin/uwsgi --ini /home/pi/Documents/miku/app.ini
 User=pi
 Group=pi

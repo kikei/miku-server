@@ -1,12 +1,28 @@
 #!/usr/bin/perl
 # -*- coding:utf-8 -*-
 
+import os
+import random
 import subprocess
 import pexpect
 import time
 from flask import Flask, request
 
-MAC = 'FC:65:DE:AA:E2:6B'
+if 'SPEAKER_MAC' not in os.environ:
+  print('Environment SPEAKER_MAC must be set.')
+  exit(1)
+
+if 'PLAYLIST' not in os.environ:
+  print('Environment PLAYLIST must be set.')
+  exit(1)
+
+MAC = os.environ['SPEAKER_MAC']
+LIST_SONGS = os.environ['PLAYLIST']
+VOLUME_SPEECH = -10
+VOLUME_SING = -20
+
+if 'TERM' not in os.environ:
+  os.environ['TERM'] = 'xterm'
 
 class BluetoothCtl():
   def __init__(self):
@@ -68,16 +84,46 @@ def jtalk(outwav, speech):
   p.wait()
   return True
 
-def aplay(wav):
-  command = ['aplay', '-q', wav]
+def mplay(audioFile, volume=0):
+  command = ['mplayer',
+             '-msglevel', 'all=0',
+             '-af', 'volume={volume}'.format(volume=volume),
+             '-nolirc', '-noconsolecontrols', audioFile]
   subprocess.Popen(command)
   return True
 
 def say(speech):
   wav = 'miku.wav'
   jtalk(wav, speech)
-  aplay(wav)
+  mplay(wav, volume=VOLUME_SPEECH)
   return speech
+
+def sing(song):
+  mplay(song, volume=VOLUME_SING)
+  return song
+
+def loadPlaylist(listFile):
+  with open(listFile, 'r') as file:
+    lines = file.readlines()
+    songs = (line.split('\t') for line in lines)
+    songs = {k.strip():v.strip() for k, v in songs}
+    return songs
+
+def requestSong(keyword=None, index=None):
+  songs = loadPlaylist(LIST_SONGS)
+  targets = [name for name in songs
+             if keyword is None or keyword in name]
+  if len(targets) > 0:
+    if index is None:
+      index = int(random.random() * len(targets))
+    else:
+      index = min(index, len(targets) - 1)
+    name = targets[index]
+    say(name)
+    time.sleep(5)
+    sing(songs[name])
+    return name
+  return 'no song'
 
 def ensureConnect():
   try:
@@ -108,6 +154,25 @@ def handleSay():
     time.sleep(3)
     speech = 'では、改めまして。' + speech
   return say(speech)
+
+@app.route('/sing', methods=['POST'])
+def handleSing():
+  keyword = None
+  index = None
+  if 'keyword' in request.form:
+    keyword = request.form['keyword']
+  if 'index' in request.form:
+    try:
+      index = int(request.form['index'])
+    except ValueError as e:
+      pass
+  reconnected = ensureConnect()
+  if reconnected:
+    say(reconnected)
+    time.sleep(3)
+    speech = 'では、歌います。'
+    say(speech)
+  return requestSong(keyword=keyword, index=index)
 
 def main():
   app.run('127.0.0.1')
